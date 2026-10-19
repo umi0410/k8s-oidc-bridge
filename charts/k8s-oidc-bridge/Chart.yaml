@@ -1,0 +1,23 @@
+apiVersion: v2
+name: k8s-oidc-bridge
+description: >-
+  Bridges k8s ServiceAccount JWTs to upstream OIDC tokens — exchange, auto-renew
+  and transparent IRSA-style projection. Controller + mutating webhook.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+kubeVersion: ">=1.19.0-0"
+keywords:
+  - oidc
+  - oauth2
+  - token-exchange
+  - irsa
+  - serviceaccount
+home: https://github.com/umi0410/k8s-oidc-bridge
+sources:
+  - https://github.com/umi0410/k8s-oidc-bridge
+maintainers:
+  - name: umi0410
+    url: https://github.com/umi0410
+annotations:
+  artifacthub.io/license: Apache-2.0

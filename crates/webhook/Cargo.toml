@@ -1,0 +1,39 @@
+[package]
+name = "oidc-bridge-webhook"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "k8s-oidc-bridge mutating admission webhook: injects the projection Secret + IRSA env."
+
+[[bin]]
+name = "oidc-bridge-webhook"
+path = "src/main.rs"
+
+[dependencies]
+oidc-bridge-common = { path = "../common" }
+
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+json-patch = { workspace = true }
+rustls = { workspace = true }
+
+axum = { workspace = true }
+axum-server = { workspace = true }
+tower = { workspace = true }
+
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+
+[lints]
+workspace = true

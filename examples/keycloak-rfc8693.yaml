@@ -1,0 +1,63 @@
+# Standard OAuth 2.0 Token Exchange (RFC 8693) against Keycloak (or any RP that supports it).
+#
+# Flow: app SA token --(urn:ietf:params:oauth:grant-type:token-exchange)--> Keycloak
+#       --> access/ID token for the target audience --> app presents it to the relying party.
+
+# --- Provider (Helm values for the bridge install) --------------------------------------------
+# providers:
+#   config:
+#     keycloak: |
+#       type: rfc8693
+#       tokenEndpoint: https://kc.example/realms/apps/protocol/openid-connect/token
+#       clientId: oidc-bridge
+#       clientSecret: $oidc-bridge-secret:keycloak-client-secret
+#       audience: downstream-api
+#       scope: "openid"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo-kc
+  labels:
+    bridge.oidc.io/inject: enabled
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-client
+  namespace: demo-kc
+---
+apiVersion: bridge.oidc.io/v1alpha1
+kind: TokenBinding
+metadata:
+  name: api-client-kc
+  namespace: demo-kc
+spec:
+  serviceAccountName: api-client
+  providerRef: keycloak
+  # Omit audience/scope to inherit the provider defaults; override per-binding when needed.
+  projection:
+    tokenFilePath: /var/run/secrets/kc/token
+    env:
+      - name: OIDC_TOKEN_FILE
+        valueFromTokenFile: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-client
+  namespace: demo-kc
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-client
+  template:
+    metadata:
+      labels:
+        app: api-client
+    spec:
+      serviceAccountName: api-client
+      containers:
+        - name: app
+          image: your/api-client:latest

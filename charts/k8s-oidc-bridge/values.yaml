@@ -1,0 +1,90 @@
+# k8s-oidc-bridge Helm values.
+# Safe defaults: TokenRequest permission scoped to specific SAs, webhook fail-closed + deadlock prevention.
+
+nameOverride: ""
+fullnameOverride: ""
+
+image:
+  # Maintainer-published image. CI pushes `:main` + the commit SHA on pushes to main.
+  # Replace with your own registry if you build the image yourself.
+  repository: ghcr.io/morgo-bot/k8s-oidc-bridge
+  tag: main
+  pullPolicy: IfNotPresent
+pullSecrets: []
+
+# Optional: ArgoCD Image Updater (CR). Off by default since this is an OSS chart. Set enabled=true only where used.
+imageUpdater:
+  enabled: false
+  applicationName: ""      # if empty, use the release name
+  updateStrategy: digest
+
+# Common metrics port (spec §4.9).
+metricsPort: 9090
+
+controller:
+  # leader-elected: N-replica failover, 1 active (spec §4.1).
+  replicas: 2
+  logLevel: info
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 128Mi }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+webhook:
+  # HA: 2+ replicas + PDB (spec §4.8.3).
+  replicas: 2
+  logLevel: info
+  port: 8443
+  # fail-closed. If the webhook dies in an opt-in ns, pod creation in that ns is blocked,
+  # so HA (2 replicas + PDB) is a prerequisite. Non-opt-in ns are not affected at all.
+  failurePolicy: Fail
+  timeoutSeconds: 5
+  # Injection control label (shared key for ns opt-in and pod opt-out).
+  injectLabel: bridge.oidc.io/inject
+  # Namespace opt-in: only pods in ns carrying this value (`<injectLabel>=<namespaceOptInValue>`) are targeted.
+  namespaceOptInValue: enabled
+  # per-pod opt-out: if a pod's `<injectLabel>` is one of these values, that pod alone is excluded from injection.
+  optOutValues: ["false", "disabled"]
+  # The template always excludes kube-system and the self ns (defense even if opt-in by mistake). Additional excluded ns.
+  extraExcludedNamespaces: []
+  pdb:
+    minAvailable: 1
+  resources:
+    requests: { cpu: 25m, memory: 64Mi }
+    limits: { memory: 128Mi }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+rbac:
+  # TokenRequest (`serviceaccounts/token` create) is a cluster-takeover primitive (spec §4.4).
+  # By default restricted to the SAs below. Open it up with clusterWide only in trusted single-tenant setups.
+  clusterWide: false
+  serviceAccountNames:
+    - aistor-k8s-client
+
+certManager:
+  # webhook TLS (spec §4.8.3). Requires cert-manager (spec §7).
+  enabled: true
+  # If empty, the chart creates a self-signed Issuer. Specify this if you have an internal CA.
+  issuerRef:
+    name: ""
+    kind: Issuer
+
+# provider definitions (spec §4.2). ConfigMap data = name -> provider YAML.
+providers:
+  config: {}
+    # authentik: |
+    #   type: rfc8693
+    #   tokenEndpoint: https://auth.example/application/o/token/
+    #   clientId: oidc-bridge
+    #   clientSecret: $oidc-bridge-secret:authentik-client-secret
+    #   audience: my-rp
+    #   scope: "openid my-rp"
+  secret:
+    # In a production lab, SOPS/External Secret is recommended. By default the chart does not create it directly.
+    create: false
+    data: {}
+    #   authentik-client-secret: "..."

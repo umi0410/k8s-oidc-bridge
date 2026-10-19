@@ -1,0 +1,9 @@
+/target
+**/*.rs.bk
+*.pdb
+
+# local env / editor
+.env
+.DS_Store
+.idea/
+.vscode/

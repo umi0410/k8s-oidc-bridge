@@ -1,0 +1,46 @@
+[package]
+name = "oidc-bridge-controller"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "k8s-oidc-bridge renew-worker: exchanges SA tokens and keeps projection Secrets fresh."
+
+[[bin]]
+name = "oidc-bridge-controller"
+path = "src/main.rs"
+
+[dependencies]
+oidc-bridge-common = { path = "../common" }
+
+kube = { workspace = true }
+k8s-openapi = { workspace = true }
+kube-leader-election = { workspace = true }
+rustls = { workspace = true }
+
+reqwest = { workspace = true }
+backon = { workspace = true }
+jsonwebtoken = { workspace = true }
+quick-xml = { workspace = true, features = ["serialize"] }
+
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+serde = { workspace = true }
+serde_json = { workspace = true }
+chrono = { workspace = true }
+
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+tokio = { workspace = true }
+async-trait = { workspace = true }
+futures = { workspace = true }
+
+[dev-dependencies]
+wiremock = { workspace = true }
+
+[lints]
+workspace = true
