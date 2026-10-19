@@ -1,0 +1,58 @@
+{{- $svc := include "obridge.webhook.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingWebhookConfiguration
+metadata:
+  name: {{ include "obridge.webhook.fullname" . }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+  {{- if .Values.certManager.enabled }}
+  annotations:
+    # cert-manager injects the Certificate's CA as the caBundle (spec §4.8.3).
+    cert-manager.io/inject-ca-from: {{ printf "%s/%s" $ns (include "obridge.webhook.certName" .) }}
+  {{- end }}
+webhooks:
+  - name: mutate.bridge.oidc.io
+    admissionReviewVersions: ["v1"]
+    sideEffects: None
+    # fail-closed (spec §4.8). The two selectors below are the key to preventing deadlock.
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    timeoutSeconds: {{ .Values.webhook.timeoutSeconds }}
+    reinvocationPolicy: IfNeeded
+    # (1) per-pod opt-out: pods carrying this value bypass the webhook entirely (§4.8.1).
+    # NotIn also matches pods without the label, so all regular pods in an opt-in ns are targeted.
+    objectSelector:
+      matchExpressions:
+        - key: {{ .Values.webhook.injectLabel }}
+          operator: NotIn
+          values:
+            {{- range .Values.webhook.optOutValues }}
+            - {{ . | quote }}
+            {{- end }}
+    # (2) namespace opt-in + exclude self ns, kube-system, and critical ns (§4.8.2).
+    namespaceSelector:
+      matchExpressions:
+        - key: {{ .Values.webhook.injectLabel }}
+          operator: In
+          values:
+            - {{ .Values.webhook.namespaceOptInValue | quote }}
+        - key: kubernetes.io/metadata.name
+          operator: NotIn
+          values:
+            - {{ $ns }}
+            - kube-system
+            {{- range .Values.webhook.extraExcludedNamespaces }}
+            - {{ . }}
+            {{- end }}
+    rules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE"]
+        resources: ["pods"]
+        scope: Namespaced
+    clientConfig:
+      service:
+        name: {{ $svc }}
+        namespace: {{ $ns }}
+        path: /mutate
+        port: 443

@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "obridge.webhook.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: webhook
+spec:
+  # HA (spec §4.8.3): a fail-closed webhook always runs multiple replicas.
+  replicas: {{ .Values.webhook.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: webhook
+  template:
+    metadata:
+      labels:
+        {{- include "obridge.labels" . | nindent 8 }}
+        app.kubernetes.io/component: webhook
+    spec:
+      serviceAccountName: {{ include "obridge.webhook.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        # The image's (distroless :nonroot) USER is a non-numeric name, so kubelet cannot verify non-root
+        # → specify the distroless nonroot UID/GID (65532) numerically.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: webhook
+          image: {{ include "obridge.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["oidc-bridge-webhook"]
+          env:
+            - name: RUST_LOG
+              value: {{ .Values.webhook.logLevel | quote }}
+            - name: WEBHOOK_ADDR
+              value: "0.0.0.0:{{ .Values.webhook.port }}"
+            - name: TLS_CERT_FILE
+              value: /etc/webhook/tls/tls.crt
+            - name: TLS_KEY_FILE
+              value: /etc/webhook/tls/tls.key
+            - name: METRICS_ADDR
+              value: "0.0.0.0:{{ .Values.metricsPort }}"
+          ports:
+            - name: https
+              containerPort: {{ .Values.webhook.port }}
+            - name: metrics
+              containerPort: {{ .Values.metricsPort }}
+          readinessProbe:
+            httpGet: { path: /healthz, port: https, scheme: HTTPS }
+            initialDelaySeconds: 3
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: https, scheme: HTTPS }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          volumeMounts:
+            - name: tls
+              mountPath: /etc/webhook/tls
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            {{- toYaml .Values.webhook.resources | nindent 12 }}
+      volumes:
+        - name: tls
+          secret:
+            secretName: {{ include "obridge.webhook.certName" . }}
+      {{- with .Values.webhook.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webhook.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.webhook.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

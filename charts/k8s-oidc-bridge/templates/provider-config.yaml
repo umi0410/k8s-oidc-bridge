@@ -1,0 +1,34 @@
+# provider definitions (spec §4.2). ConfigMap values reference the Secret via `$oidc-bridge-secret:<key>`.
+# Even with no providers (smoke-test), this comes up as a valid empty ConfigMap — the controller
+# reads these values only when a TokenBinding is reconciled, so being empty is harmless.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: oidc-bridge-providers
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+{{- if .Values.providers.config }}
+data:
+  {{- range $name, $doc := .Values.providers.config }}
+  {{ $name }}: |
+    {{- $doc | nindent 4 }}
+  {{- end }}
+{{- else }}
+data: {}
+{{- end }}
+{{- if .Values.providers.secret.create }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: oidc-bridge-secret
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+type: Opaque
+stringData:
+  {{- range $k, $v := .Values.providers.secret.data }}
+  {{ $k }}: {{ $v | quote }}
+  {{- end }}
+{{- end }}

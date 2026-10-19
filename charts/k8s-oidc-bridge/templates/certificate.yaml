@@ -1,0 +1,37 @@
+{{- if .Values.certManager.enabled }}
+{{- $svc := include "obridge.webhook.fullname" . -}}
+{{- $ns := .Release.Namespace -}}
+{{- if not .Values.certManager.issuerRef.name }}
+# Create a self-signed Issuer when issuerRef is not specified.
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: {{ $svc }}-selfsigned
+  namespace: {{ $ns }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+spec:
+  selfSigned: {}
+---
+{{- end }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "obridge.webhook.certName" . }}
+  namespace: {{ $ns }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "obridge.webhook.certName" . }}
+  dnsNames:
+    - {{ $svc }}.{{ $ns }}.svc
+    - {{ $svc }}.{{ $ns }}.svc.cluster.local
+  issuerRef:
+    {{- if .Values.certManager.issuerRef.name }}
+    name: {{ .Values.certManager.issuerRef.name }}
+    kind: {{ .Values.certManager.issuerRef.kind }}
+    {{- else }}
+    name: {{ $svc }}-selfsigned
+    kind: Issuer
+    {{- end }}
+{{- end }}

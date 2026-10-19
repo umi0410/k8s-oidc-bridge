@@ -1,0 +1,26 @@
+{{- if .Values.imageUpdater.enabled }}
+# Optional: auto-update this chart's image via ArgoCD Image Updater (CR style). Off by default since this is an OSS chart;
+# enable only in environments that use ArgoCD Image Updater. The controller only watches CRs in the argocd ns, so ns=argocd.
+apiVersion: argocd-image-updater.argoproj.io/v1alpha1
+kind: ImageUpdater
+metadata:
+  name: {{ include "obridge.fullname" . }}
+  namespace: argocd
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+spec:
+  writeBackConfig:
+    method: argocd
+  applicationRefs:
+    - namePattern: {{ .Values.imageUpdater.applicationName | default .Release.Name }}
+      images:
+        - alias: oidc-bridge
+          imageName: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          manifestTargets:
+            helm:
+              # This chart is deployed as the Helm source of an ArgoCD multi-source, receiving image.tag as a valuesObject.
+              tag: image.tag
+          commonUpdateSettings:
+            # Track the digest of the :main tag (switch to newest-build + allowTags when moving to commit sha tags).
+            updateStrategy: {{ .Values.imageUpdater.updateStrategy | default "digest" }}
+{{- end }}

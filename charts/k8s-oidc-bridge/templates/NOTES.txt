@@ -1,0 +1,18 @@
+k8s-oidc-bridge installed in namespace {{ .Release.Namespace }}.
+
+Next steps:
+  1. Define at least one provider under `providers.config` (see values.yaml).
+  2. Put the upstream client secret in the `oidc-bridge-secret` Secret and reference
+     it from the ConfigMap as `$oidc-bridge-secret:<key>` (ArgoCD style).
+  3. Opt your app namespace in:
+       kubectl label namespace <ns> {{ .Values.webhook.injectLabel }}={{ .Values.webhook.namespaceOptInValue }}
+  4. Create a TokenBinding (CRD group bridge.oidc.io) in that namespace, pointing
+     `spec.serviceAccountName` at your app's ServiceAccount. Pods using that SA are
+     injected automatically — no per-pod annotation needed. To exclude a single pod,
+     label it `{{ .Values.webhook.injectLabel }}: "false"`.
+
+Precondition (spec §7): the cluster OIDC issuer discovery must be reachable by the
+upstream provider, and cert-manager must be installed for the webhook certificate.
+
+TokenRequest RBAC is scoped to: {{ .Values.rbac.serviceAccountNames | join ", " }}
+{{- if .Values.rbac.clusterWide }} (OVERRIDDEN: cluster-wide){{ end }}

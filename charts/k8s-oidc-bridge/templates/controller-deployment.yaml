@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "obridge.controller.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "obridge.labels" . | nindent 4 }}
+    app.kubernetes.io/component: controller
+spec:
+  # leader election guarantees a single active instance (spec §4.1).
+  replicas: {{ .Values.controller.replicas }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: controller
+  template:
+    metadata:
+      labels:
+        {{- include "obridge.labels" . | nindent 8 }}
+        app.kubernetes.io/component: controller
+    spec:
+      serviceAccountName: {{ include "obridge.controller.fullname" . }}
+      securityContext:
+        runAsNonRoot: true
+        # The image's (distroless :nonroot) USER is a non-numeric name, so kubelet cannot verify non-root
+        # → specify the distroless nonroot UID/GID (65532) numerically.
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: controller
+          image: {{ include "obridge.image" . | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          # Assumes both binaries live in a single image (spec §5 packaging).
+          command: ["oidc-bridge-controller"]
+          env:
+            - name: RUST_LOG
+              value: {{ .Values.controller.logLevel | quote }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef: { fieldPath: metadata.name }
+            - name: PROVIDER_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: LEASE_NAMESPACE
+              value: {{ .Release.Namespace | quote }}
+            - name: PROVIDER_CONFIGMAP
+              value: "oidc-bridge-providers"
+            - name: PROVIDER_SECRET
+              value: "oidc-bridge-secret"
+            - name: METRICS_ADDR
+              value: "0.0.0.0:{{ .Values.metricsPort }}"
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.metricsPort }}
+          livenessProbe:
+            tcpSocket: { port: metrics }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          resources:
+            {{- toYaml .Values.controller.resources | nindent 12 }}
+      {{- with .Values.controller.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.controller.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

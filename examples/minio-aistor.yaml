@@ -1,0 +1,78 @@
+# MinIO / AIStor via OIDC web-identity, claim-based (no RoleArn).
+#
+# Flow: app SA token --(client_assertion)--> Authentik --> id_token (carries a `policy` claim)
+#       --> app calls AssumeRoleWithWebIdentity on MinIO --> temporary S3 creds.
+# MinIO trusts Authentik as its single claim-based OIDC provider; the bridge never touches MinIO.
+#
+# NOTE on claim-based MinIO: AssumeRoleWithWebIdentity must NOT carry a RoleArn (MinIO returns 400).
+# The stock AWS SDK web-identity chain *requires* RoleArn, so the app needs a small custom
+# credential provider that calls STS without one. The env below is still IRSA-shaped so the token
+# file + endpoints are discovered the usual way.
+
+# --- Provider (Helm values for the bridge install) --------------------------------------------
+# providers:
+#   config:
+#     authentik: |
+#       type: client-assertion
+#       tokenEndpoint: https://auth.example/application/o/token/
+#       clientId: minio
+#       scope: "openid minio"
+#       tokenField: id_token
+#       # clientSecret only if your Authentik M2M flow needs it:
+#       # clientSecret: $oidc-bridge-secret:authentik-client-secret
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+  labels:
+    bridge.oidc.io/inject: enabled      # (1) namespace opt-in
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: photo-app
+  namespace: demo
+---
+apiVersion: bridge.oidc.io/v1alpha1
+kind: TokenBinding
+metadata:
+  name: photo-app-minio
+  namespace: demo
+spec:
+  serviceAccountName: photo-app         # (2) resolve by SA — no pod annotation
+  providerRef: authentik
+  # The SA token's audience = Authentik's token endpoint (RFC 7523 client assertion).
+  audience: https://auth.example/application/o/token/
+  projection:
+    tokenFilePath: /var/run/secrets/aistor/token
+    env:
+      - name: AWS_WEB_IDENTITY_TOKEN_FILE
+        valueFromTokenFile: true
+      - name: AWS_REGION
+        value: us-east-1
+      - name: AWS_ENDPOINT_URL_S3
+        value: https://s3.example
+      - name: AWS_ENDPOINT_URL_STS
+        value: https://s3.example
+      # Deliberately NO AWS_ROLE_ARN — claim-based MinIO rejects it.
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: photo-app
+  namespace: demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: photo-app
+  template:
+    metadata:
+      labels:
+        app: photo-app                  # (3) nothing bridge-specific needed here
+    spec:
+      serviceAccountName: photo-app     # using the bound SA => injected automatically
+      containers:
+        - name: app
+          image: your/photo-app:latest

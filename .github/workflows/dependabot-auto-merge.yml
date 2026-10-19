@@ -1,0 +1,26 @@
+name: Dependabot auto-merge
+
+# Auto-merge Dependabot PRs once CI passes. CI runs `test` and builds the `image` on every PR;
+# this enables GitHub auto-merge, which holds the PR until the required checks pass, then
+# squash-merges — including major bumps, as long as tests pass and the image still builds.
+#
+# Requires two one-time repo settings (Settings → General / Branches):
+#   1. "Allow auto-merge" enabled.
+#   2. A branch protection rule on `main` requiring the `test` AND `image` status checks.
+# Without (2), auto-merge would merge before CI finishes.
+on: pull_request
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
