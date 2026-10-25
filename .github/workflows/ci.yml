@@ -37,7 +37,7 @@ jobs:
         run: cargo test --workspace
 
       - name: Helm lint
-        uses: azure/setup-helm@v4
+        uses: azure/setup-helm@v5
         with:
           version: latest
       - run: helm lint charts/k8s-oidc-bridge
