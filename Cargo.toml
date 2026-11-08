@@ -11,7 +11,7 @@ repository = "https://github.com/umi0410/k8s-oidc-bridge"
 
 [workspace.dependencies]
 # operator / CRD runtime
-kube = { version = "4.2", default-features = false, features = [
+kube = { version = "5.0", default-features = false, features = [
     "client",
     "derive",
     "runtime",
