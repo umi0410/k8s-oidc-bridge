@@ -26,7 +26,7 @@ schemars = "1"
 # web / admission server
 axum = "0.8"
 # tls-rustls-no-provider avoids a forced provider (aws-lc-rs); the provider is unified to ring below.
-axum-server = { version = "0.8", features = ["tls-rustls-no-provider"] }
+axum-server = { version = "0.9", features = ["tls-rustls-no-provider"] }
 tower = "0.5"
 hyper = "1"
 # rustls CryptoProvider — pin the tree to the ring-only backend (removes aws-lc-sys's C/asm build).
