@@ -20,7 +20,7 @@ kube = { version = "4.2", default-features = false, features = [
     "ring",
 ] }
 k8s-openapi = { version = "0.28", features = ["latest"] }
-kube-leader-election = "0.44"
+kube-leader-election = "0.45"
 schemars = "1"
 
 # web / admission server
